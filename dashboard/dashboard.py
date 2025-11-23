@@ -7,9 +7,6 @@ from datetime import datetime
 import random
 import time
 
-with open("dashboard/styles.css") as f:
-    st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
-
 # -----------------------------
 # PATH SETUP (robust)
 # -----------------------------
