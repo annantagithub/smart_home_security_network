@@ -2,286 +2,359 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import json
-import os
-import random
+from pathlib import Path
 from datetime import datetime
+import random
+import time
 
-# ---------------------------------------
-# Load CSS Styles
-# ---------------------------------------
+# -----------------------------
+# PATH SETUP (robust)
+# -----------------------------
+BASE_DIR = Path(__file__).resolve().parent          # /dashboard
+ROOT_DIR = BASE_DIR.parent                         # project root
+DATA_DIR = ROOT_DIR / "data"                       # /data
+CSS_PATH = BASE_DIR / "styles.css"
+ALERTS_PATH = DATA_DIR / "alerts.json"
+NETWORK_PATH = DATA_DIR / "network.json"
+
+# -----------------------------
+# LOAD CSS
+# -----------------------------
+# if CSS_PATH.exists():
+#   st.markdown(f"<style>{CSS_PATH.read_text()}</style>", unsafe_allow_html=True)
 with open("dashboard/styles.css") as f:
     st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-# viewport for mobile responsiveness
-st.markdown("""
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-""", unsafe_allow_html=True)
-
-# ---------------------------------------
-# Top Navigation Bar
-# ---------------------------------------
-st.markdown("""
-<div class="top-nav">
-    🛡️ Smart Home Security Monitoring Center — UEL Cybersecurity
-</div>
-""", unsafe_allow_html=True)
-
-# ---------------------------------------
-# Page Configuration
-# ---------------------------------------
+# -----------------------------
+# PAGE CONFIG
+# -----------------------------
 st.set_page_config(
     page_title="Smart Home Network Security Dashboard",
-    page_icon="🔐",
+    page_icon="🏠",
     layout="wide"
 )
 
-# ---------------------------------------
-# Additional Inline Styles
-# ---------------------------------------
+# -----------------------------
+# TOP NAV BAR (Premium)
+# -----------------------------
 st.markdown(
     """
-    <style>
-    .main {
-        background-color: #111827;
-        color: #F9FAFB;
-    }
-    .stButton>button {
-        border-radius: 20px;
-    }
-    </style>
+    <div class="top-nav">
+        <div class="top-nav-left">
+            <span class="brand-dot"></span>
+            <span class="brand-title">Smart Home Security Monitoring Center</span>
+        </div>
+        <div class="top-nav-right">
+            <span class="pill">UEL Cybersecurity</span>
+            <span class="pill glow">Live</span>
+        </div>
+    </div>
     """,
     unsafe_allow_html=True
 )
 
-# ---------------------------------------
-# Data Helpers (JSON storage)
-# ---------------------------------------
-DATA_FILE = "data/network.json"
+# -----------------------------
+# HELPERS
+# -----------------------------
+def load_json(path: Path, fallback):
+    if path.exists():
+        try:
+            return json.loads(path.read_text())
+        except Exception:
+            return fallback
+    return fallback
 
-def load_data():
-    if not os.path.exists(DATA_FILE):
-        return {"devices": []}
-    with open(DATA_FILE, "r") as f:
-        return json.load(f)
 
-def save_data(data):
-    with open(DATA_FILE, "w") as f:
-        json.dump(data, f, indent=4)
+def save_json(path: Path, data):
+    path.write_text(json.dumps(data, indent=2))
 
-data = load_data()
-devices = data.get("devices", [])
 
-devices_df = pd.DataFrame(devices)
+def get_devices():
+    data = load_json(NETWORK_PATH, {"devices": []})
+    return data.get("devices", [])
 
-# ---------------------------------------
-# Session State for Alerts
-# ---------------------------------------
-if "alerts" not in st.session_state:
-    st.session_state.alerts = [
-        {"time": "10:00", "source": "Guest Phone", "destination": "Admin PC", "type": "Unauthorized Access", "status": "Blocked"},
-        {"time": "10:05", "source": "IoT Camera", "destination": "User Laptop", "type": "Cross-VLAN Attempt", "status": "Blocked"},
-        {"time": "10:10", "source": "Smart Bulb", "destination": "Admin PC", "type": "ARP Spoofing", "status": "Suspicious"},
-        {"time": "10:20", "source": "Guest Phone", "destination": "Admin PC", "type": "Unauthorized Access", "status": "Blocked"},
-    ]
 
-alerts = st.session_state.alerts
+def save_devices(devices):
+    save_json(NETWORK_PATH, {"devices": devices})
 
-# ---------------------------------------
-# Sidebar Navigation
-# ---------------------------------------
-with st.sidebar:
-    st.header("🔐 Navigation")
-    page = st.radio(
-        "Go to:",
-        ["Dashboard", "Alerts", "Devices", "Quarantine Center", "Network Overview"]
-    )
 
-# ---------------------------------------
-# Helper Functions (Device Status Updates)
-# ---------------------------------------
+def get_alerts():
+    data = load_json(ALERTS_PATH, {"alerts": []})
+    return data.get("alerts", [])
+
+
+def save_alerts(alerts):
+    save_json(ALERTS_PATH, {"alerts": alerts})
+
+
+def push_fake_alert(devices):
+    """Simulate a live alert every refresh"""
+    if not devices:
+        return
+    suspects = [d for d in devices if d.get("status") != "Safe"]
+    device = random.choice(suspects if suspects else devices)
+    new_alert = {
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "device": device.get("name"),
+        "ip": device.get("ip"),
+        "type": random.choice(["Port Scan", "Malware Beacon", "Unauthorized Access", "Brute Force"]),
+        "severity": random.choice(["Low", "Medium", "High"]),
+        "vlan": device.get("vlan"),
+        "status": "Blocked" if random.random() > 0.4 else "Detected"
+    }
+    alerts = get_alerts()
+    alerts.append(new_alert)
+    save_alerts(alerts)
+
+
 def update_device_status(name, new_status, new_vlan=None):
+    devices = get_devices()
     for d in devices:
-        if d["name"] == name:
+        if d.get("name") == name:
             d["status"] = new_status
             if new_vlan is not None:
                 d["vlan"] = new_vlan
-            save_data({"devices": devices})
-            break
+    save_devices(devices)
 
-def count_quarantined():
-    return sum(1 for d in devices if d["status"] == "Quarantined")
 
-def count_active():
-    return len(devices)
+# -----------------------------
+# SIDEBAR NAV
+# -----------------------------
+with st.sidebar:
+    st.markdown("<div class='side-title'>🧭 Navigation</div>", unsafe_allow_html=True)
+    page = st.radio(
+        "Go to:",
+        ["Dashboard", "Alerts", "Devices", "Quarantine Center", "Network Overview"],
+        label_visibility="collapsed"
+    )
 
-# =======================================
+# Always load latest data
+devices = get_devices()
+alerts = get_alerts()
+
+devices_df = pd.DataFrame(devices) if devices else pd.DataFrame(columns=["name","ip","vlan","status"])
+alerts_df = pd.DataFrame(alerts) if alerts else pd.DataFrame(columns=["timestamp","device","ip","type","severity","vlan","status"])
+
+# -----------------------------
 # PAGE 1: DASHBOARD
-# =======================================
+# -----------------------------
 if page == "Dashboard":
-    st.title("🏠 Smart Home Network Security Dashboard")
-    st.caption("Monitor home IoT devices, VLAN segmentation, alerts and intrusions in real time.")
+    st.markdown("<div class='page-header'>🏠 Smart Home Network Security Dashboard</div>", unsafe_allow_html=True)
+    st.caption("Monitor IoT devices, VLAN segmentation, alerts and intrusions in real-time.")
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Active Devices", count_active())
-    col2.metric("Blocked Attacks", len(alerts))
-    col3.metric("Quarantined Devices", count_quarantined())
+    # KPI counts
+    active_count = len(devices)
+    blocked_count = len(alerts_df[alerts_df["status"] == "Blocked"]) if not alerts_df.empty else 0
+    quarantined_count = len(devices_df[devices_df["status"] == "Quarantined"]) if not devices_df.empty else 0
 
-    st.markdown("---")
-    st.subheader("🖥️ Connected Devices")
+    # KPI Tiles (responsive)
+    st.markdown(
+        f"""
+        <div class="kpi-grid">
+            <div class="kpi-card glow-blue">
+                <div class="kpi-title">Active Devices</div>
+                <div class="kpi-value">{active_count}</div>
+                <div class="kpi-foot">Connected right now</div>
+            </div>
 
-    if not devices_df.empty:
-        st.table(devices_df)
+            <div class="kpi-card glow-cyan">
+                <div class="kpi-title">Blocked Attacks</div>
+                <div class="kpi-value">{blocked_count}</div>
+                <div class="kpi-foot">Auto-blocked by ACL</div>
+            </div>
+
+            <div class="kpi-card glow-purple">
+                <div class="kpi-title">Quarantined</div>
+                <div class="kpi-value">{quarantined_count}</div>
+                <div class="kpi-foot">Isolated to VLAN 99</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.markdown("<div class='section-title'>🖥️ Connected Devices</div>", unsafe_allow_html=True)
+
+    if devices_df.empty:
+        st.info("No devices found.")
     else:
-        st.info("No device data available yet.")
+        # Device cards (mobile-friendly)
+        for d in devices:
+            status = d.get("status", "Unknown")
+            vlan = d.get("vlan", "-")
+            ip = d.get("ip", "-")
+            name = d.get("name", "Device")
 
-# =======================================
+            status_class = {
+                "Safe": "status-safe",
+                "Suspicious": "status-suspicious",
+                "Quarantined": "status-quarantine"
+            }.get(status, "status-neutral")
+
+            st.markdown(
+                f"""
+                <div class="device-card">
+                    <div class="device-row">
+                        <div class="device-name">📌 {name}</div>
+                        <div class="device-status {status_class}">{status}</div>
+                    </div>
+                    <div class="device-meta">
+                        <span>IP: {ip}</span>
+                        <span>VLAN: {vlan}</span>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+# -----------------------------
 # PAGE 2: ALERTS
-# =======================================
+# -----------------------------
 elif page == "Alerts":
-    st.title("🚨 Security Alerts")
+    st.markdown("<div class='page-header'>🚨 Alerts</div>", unsafe_allow_html=True)
+    st.caption("Simulated real-time threat events.")
 
-    if alerts:
-        st.table(pd.DataFrame(alerts))
+    # push 1 new alert each page refresh to simulate live behavior
+    push_fake_alert(devices)
+    alerts_df = pd.DataFrame(get_alerts())
+
+    if alerts_df.empty:
+        st.info("No alerts yet.")
     else:
-        st.success("No alerts generated yet.")
+        # Latest first
+        alerts_df = alerts_df.sort_values("timestamp", ascending=False)
 
-    st.markdown("### Simulate Attack 🧪")
+        # Show as nice list on mobile
+        st.markdown("<div class='section-title'>Recent Alerts</div>", unsafe_allow_html=True)
 
-    if st.button("🔴 Generate Attack Event"):
-        possible_sources = [d["name"] for d in devices] if devices else ["Unknown Device"]
+        for _, a in alerts_df.head(20).iterrows():
+            sev = a.get("severity","Low")
+            sev_class = {
+                "Low": "sev-low",
+                "Medium": "sev-med",
+                "High": "sev-high"
+            }.get(sev, "sev-low")
 
-        new_alert = {
-            "time": datetime.now().strftime("%H:%M:%S"),
-            "source": random.choice(possible_sources),
-            "destination": random.choice(["Admin PC", "User Laptop", "Home Server"]),
-            "type": random.choice(["Unauthorized Access", "Cross-VLAN Attempt", "Port Scan", "Brute-Force Login", "Suspicious Traffic"]),
-            "status": random.choice(["Blocked", "Quarantined", "Suspicious"])
-        }
+            st.markdown(
+                f"""
+                <div class="alert-card">
+                    <div class="alert-top">
+                        <div class="alert-type">⚠️ {a.get("type")}</div>
+                        <div class="alert-sev {sev_class}">{sev}</div>
+                    </div>
+                    <div class="alert-body">
+                        <div><b>Device:</b> {a.get("device")}</div>
+                        <div><b>IP:</b> {a.get("ip")}</div>
+                        <div><b>VLAN:</b> {a.get("vlan")}</div>
+                        <div class="alert-time">{a.get("timestamp")}</div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
-        st.session_state.alerts.append(new_alert)
-        st.success(f"New alert generated: {new_alert}")
+        st.markdown("<div class='section-title'>Alerts Over Time</div>", unsafe_allow_html=True)
+        alerts_df["timestamp"] = pd.to_datetime(alerts_df["timestamp"], errors="coerce")
+        alerts_df = alerts_df.dropna(subset=["timestamp"])
+        if not alerts_df.empty:
+            line_df = alerts_df.groupby(alerts_df["timestamp"].dt.floor("min")).size().reset_index(name="count")
+            fig = px.line(line_df, x="timestamp", y="count", markers=True, title="Alert Activity Over Time")
+            st.plotly_chart(fig, use_container_width=True)
 
-    st.markdown("### Live Alert Log")
-    st.dataframe(pd.DataFrame(st.session_state.alerts), width="stretch")
-
-# =======================================
-# PAGE 3: DEVICE EXPLORER
-# =======================================
+# -----------------------------
+# PAGE 3: DEVICES
+# -----------------------------
 elif page == "Devices":
-
-    device_icons = {
-        "Admin PC": "🖥️",
-        "User Laptop": "💻",
-        "IoT Camera": "📷",
-        "Guest Phone": "📱",
-        "Smart Bulb": "💡"
-    }
-
-    if not devices_df.empty:
-        devices_df["icon"] = devices_df["name"].apply(lambda x: device_icons.get(x, "🔧"))
-        devices_df["name"] = devices_df["icon"] + " " + devices_df["name"]
-
-    st.title("💻 Device Explorer")
-    st.caption("View device details and take actions.")
+    st.markdown("<div class='page-header'>📡 Devices</div>", unsafe_allow_html=True)
+    st.caption("Inspect and take actions per device.")
 
     if not devices:
         st.info("No devices available.")
     else:
         for d in devices:
-            with st.expander(f"{d['name']} — {d['ip']} (VLAN {d['vlan']})"):
+            with st.expander(f"{d.get('name')} — {d.get('ip')} (VLAN {d.get('vlan')})", expanded=False):
+                st.write(f"**Status:** {d.get('status')}")
+                st.write(f"**IP Address:** {d.get('ip')}")
+                st.write(f"**VLAN:** {d.get('vlan')}")
 
-                st.write(f"**Status:** {d['status']}")
-                st.write(f"**VLAN:** {d['vlan']}")
+                c1, c2, c3 = st.columns(3)
 
-                col_a, col_b, col_c = st.columns(3)
-
-                with col_a:
-                    if st.button(f"Mark Safe ({d['name']})", key=f"safe_{d['name']}"):
-                        update_device_status(d["name"], "Safe")
+                with c1:
+                    if st.button(f"Mark Safe ✅", key=f"safe_{d.get('name')}"):
+                        update_device_status(d.get("name"), "Safe")
                         st.success("Device marked safe.")
 
-                with col_b:
-                    if st.button(f"Block ({d['name']})", key=f"block_{d['name']}"):
-                        update_device_status(d["name"], "Suspicious")
-                        st.warning("Device blocked.")
+                with c2:
+                    if st.button(f"Block 🚫", key=f"block_{d.get('name')}"):
+                        update_device_status(d.get("name"), "Suspicious")
+                        st.warning("Device blocked (Suspicious).")
 
-                with col_c:
-                    if st.button(f"Isolate ({d['name']})", key=f"iso_{d['name']}"):
-                        update_device_status(d["name"], "Quarantined", new_vlan=99)
-                        st.error("Device quarantined.")
+                with c3:
+                    if st.button(f"Quarantine 🧪", key=f"iso_{d.get('name')}"):
+                        update_device_status(d.get("name"), "Quarantined", new_vlan=99)
+                        st.error("Device quarantined to VLAN 99.")
 
-# =======================================
+# -----------------------------
 # PAGE 4: QUARANTINE CENTER
-# =======================================
+# -----------------------------
 elif page == "Quarantine Center":
-    st.title("🚫 Quarantine Center")
+    st.markdown("<div class='page-header'>🧪 Quarantine Center</div>", unsafe_allow_html=True)
+    quarantined = [d for d in devices if d.get("status") == "Quarantined"]
 
-    quarantined = [d for d in devices if d["status"] == "Quarantined"]
-
-    if quarantined:
-        st.table(pd.DataFrame(quarantined))
+    if not quarantined:
+        st.success("No quarantined devices. Network is clean.")
+    else:
+        st.markdown("<div class='section-title'>Isolated Devices (VLAN 99)</div>", unsafe_allow_html=True)
 
         for d in quarantined:
-            if st.button(f"Release {d['name']}", key=f"rel_{d['name']}"):
-                update_device_status(d["name"], "Safe", new_vlan=40)
-                st.success(f"{d['name']} released from quarantine.")
-    else:
-        st.success("No devices in quarantine.")
+            st.markdown(
+                f"""
+                <div class="device-card quarantine">
+                    <div class="device-row">
+                        <div class="device-name">🛑 {d.get("name")}</div>
+                        <div class="device-status status-quarantine">Quarantined</div>
+                    </div>
+                    <div class="device-meta">
+                        <span>IP: {d.get("ip")}</span>
+                        <span>VLAN: {d.get("vlan")}</span>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
-# =======================================
+            if st.button(f"Release {d.get('name')} 🔓", key=f"release_{d.get('name')}"):
+                update_device_status(d.get("name"), "Safe", new_vlan=40)
+                st.success(f"{d.get('name')} released back to VLAN 40.")
+
+# -----------------------------
 # PAGE 5: NETWORK OVERVIEW
-# =======================================
+# -----------------------------
 elif page == "Network Overview":
-    st.title("🌐 Network Overview")
+    st.markdown("<div class='page-header'>🗺️ Network Overview</div>", unsafe_allow_html=True)
 
-    st.write("""
-    - VLAN 10 ➜ Admin  
-    - VLAN 20 ➜ Users  
-    - VLAN 30 ➜ Guest  
-    - VLAN 40 ➜ IoT  
-    - VLAN 99 ➜ Quarantine  
-    """)
-
-    df = pd.DataFrame(devices)
-
-    if not df.empty:
-        # VLAN distribution
-        st.subheader("📊 Device Distribution by VLAN")
-        st.bar_chart(df["vlan"].value_counts())
-
-        # Status chart
-        st.subheader("🛡️ Device Security Status")
-        fig = px.pie(values=df["status"].value_counts().values,
-                     names=df["status"].value_counts().index)
-        st.plotly_chart(fig, width="stretch")
-
-    # Heatmap
-    st.subheader("🔥 VLAN Traffic Heatmap (Simulated)")
-    heatmap_data = pd.DataFrame(
-        [[10, 30, 20],
-         [15, 40, 10],
-         [5, 10, 50]],
-        columns=["Admin VLAN 10", "User VLAN 20", "IoT VLAN 40"],
-        index=["Morning", "Afternoon", "Night"]
+    st.markdown(
+        """
+        **VLAN Segments (Simulation):**
+        - VLAN 10 → Admin  
+        - VLAN 20 → Users  
+        - VLAN 30 → Guest  
+        - VLAN 40 → IoT  
+        - VLAN 99 → Quarantine  
+        """
     )
-    fig3 = px.imshow(heatmap_data, aspect="auto", color_continuous_scale="teal")
-    st.plotly_chart(fig3, width="stretch")
 
-    # Topology Map
-    st.subheader("🌐 IoT Network Topology Map")
-    nodes = ["Router", "Admin PC", "User Laptop", "IoT Camera", "Guest Phone", "Smart Bulb"]
-    edges = [("Router", "Admin PC"), ("Router", "User Laptop"), ("Router", "IoT Camera"),
-             ("Router", "Guest Phone"), ("Router", "Smart Bulb")]
+    if devices_df.empty:
+        st.info("No data available for charts.")
+    else:
+        st.markdown("<div class='section-title'>Device Distribution by VLAN</div>", unsafe_allow_html=True)
+        vlan_counts = devices_df["vlan"].value_counts().reset_index()
+        vlan_counts.columns = ["vlan", "count"]
+        fig1 = px.bar(vlan_counts, x="vlan", y="count", title="Devices per VLAN")
+        st.plotly_chart(fig1, use_container_width=True)
 
-    topology_df = pd.DataFrame(edges, columns=["source", "target"])
-    fig4 = px.scatter(
-        topology_df,
-        x=[1, 2, 2, 2, 2, 2],
-        y=[3, 5, 4, 3, 2, 1],
-        text=nodes,
-        size=[20] * 6,
-        color=nodes,
-        color_discrete_sequence=px.colors.qualitative.Dark24
-    )
-    fig4.update_traces(textposition="top center")
-    st.plotly_chart(fig4, width="stretch")
+        st.markdown("<div class='section-title'>Security Status of Devices</div>", unsafe_allow_html=True)
+        status_counts = devices_df["status"].value_counts().reset_index()
+        status_counts.columns = ["status", "count"]
+        fig2 = px.pie(status_counts, names="status", values="count", title="Security Status of Devices")
+        st.plotly_chart(fig2, use_container_width=True)
