@@ -12,6 +12,11 @@ from datetime import datetime
 with open("dashboard/styles.css") as f:
     st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
+# viewport for mobile responsiveness
+st.markdown("""
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+""", unsafe_allow_html=True)
+
 # ---------------------------------------
 # Top Navigation Bar
 # ---------------------------------------
@@ -157,7 +162,7 @@ elif page == "Alerts":
         st.success(f"New alert generated: {new_alert}")
 
     st.markdown("### Live Alert Log")
-    st.dataframe(pd.DataFrame(st.session_state.alerts), use_container_width=True)
+    st.dataframe(pd.DataFrame(st.session_state.alerts), width="stretch")
 
 # =======================================
 # PAGE 3: DEVICE EXPLORER
@@ -248,7 +253,7 @@ elif page == "Network Overview":
         st.subheader("🛡️ Device Security Status")
         fig = px.pie(values=df["status"].value_counts().values,
                      names=df["status"].value_counts().index)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     # Heatmap
     st.subheader("🔥 VLAN Traffic Heatmap (Simulated)")
@@ -260,7 +265,7 @@ elif page == "Network Overview":
         index=["Morning", "Afternoon", "Night"]
     )
     fig3 = px.imshow(heatmap_data, aspect="auto", color_continuous_scale="teal")
-    st.plotly_chart(fig3, use_container_width=True)
+    st.plotly_chart(fig3, width="stretch")
 
     # Topology Map
     st.subheader("🌐 IoT Network Topology Map")
@@ -279,4 +284,4 @@ elif page == "Network Overview":
         color_discrete_sequence=px.colors.qualitative.Dark24
     )
     fig4.update_traces(textposition="top center")
-    st.plotly_chart(fig4, use_container_width=True)
+    st.plotly_chart(fig4, width="stretch")
