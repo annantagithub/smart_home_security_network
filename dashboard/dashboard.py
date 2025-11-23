@@ -7,6 +7,9 @@ from datetime import datetime
 import random
 import time
 
+with open("dashboard/styles.css") as f:
+    st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
 # -----------------------------
 # PATH SETUP (robust)
 # -----------------------------
@@ -20,8 +23,8 @@ NETWORK_PATH = DATA_DIR / "network.json"
 # -----------------------------
 # LOAD CSS
 # -----------------------------
-# if CSS_PATH.exists():
-#   st.markdown(f"<style>{CSS_PATH.read_text()}</style>", unsafe_allow_html=True)
+if CSS_PATH.exists():
+   st.markdown(f"<style>{CSS_PATH.read_text()}</style>", unsafe_allow_html=True)
 with open("dashboard/styles.css") as f:
     st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
