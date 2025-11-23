@@ -1,146 +1,360 @@
-/* ----------- GLOBAL THEME ----------- */
-body {
-    background: radial-gradient(circle at top, #0a1a24, #071017 60%, #000000);
-    color: #e6f1ff;
-    font-family: 'Segoe UI', sans-serif;
-}
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+import json
+from pathlib import Path
+from datetime import datetime
+import random
+import time
 
-/* Fade-in animation for every page */
-.main {
-    animation: fadein 0.7s ease-in-out;
-}
+# -----------------------------
+# PATH SETUP (robust)
+# -----------------------------
+BASE_DIR = Path(__file__).resolve().parent          # /dashboard
+ROOT_DIR = BASE_DIR.parent                         # project root
+DATA_DIR = ROOT_DIR / "data"                       # /data
+CSS_PATH = BASE_DIR / "styles.css"
+ALERTS_PATH = DATA_DIR / "alerts.json"
+NETWORK_PATH = DATA_DIR / "network.json"
 
-@keyframes fadein {
-    from { opacity: 0; transform: translateY(15px); }
-    to { opacity: 1; transform: translateY(0); }
-}
+# -----------------------------
+# LOAD CSS
+# -----------------------------
+# if CSS_PATH.exists():
+#   st.markdown(f"<style>{CSS_PATH.read_text()}</style>", unsafe_allow_html=True)
+with open("dashboard/styles.css") as f:
+    st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-/* ----------- TOP NAV BAR ----------- */
-.top-nav {
-    width: 100%;
-    padding: 12px;
-    background: linear-gradient(90deg, #003a63, #005f84, #00a1d6);
-    color: white;
-    font-size: 22px;
-    text-align: center;
-    border-bottom: 2px solid #00eaff;
-    box-shadow: 0 4px 15px rgba(0,255,255,0.35);
-    margin-bottom: 20px;
-}
+# -----------------------------
+# PAGE CONFIG
+# -----------------------------
+st.set_page_config(
+    page_title="Smart Home Network Security Dashboard",
+    page_icon="🏠",
+    layout="wide"
+)
 
-/* ----------- STAT CARDS (Animated) ----------- */
-.stat-card {
-    padding: 20px;
-    border-radius: 10px;
-    background: rgba(0, 40, 60, 0.35);
-    border-left: 6px solid #00eaff;
-    box-shadow: 0 0 15px rgba(0,255,255,0.25);
-    animation: pulse 2.3s infinite;
-}
+# -----------------------------
+# TOP NAV BAR (Premium)
+# -----------------------------
+st.markdown(
+    """
+    <div class="top-nav">
+        <div class="top-nav-left">
+            <span class="brand-dot"></span>
+            <span class="brand-title">Smart Home Security Monitoring Center</span>
+        </div>
+        <div class="top-nav-right">
+            <span class="pill">UEL Cybersecurity</span>
+            <span class="pill glow">Live</span>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
-@keyframes pulse {
-    0% { box-shadow: 0 0 8px rgba(0,255,255,0.25); }
-    50% { box-shadow: 0 0 18px rgba(0,255,255,0.48); }
-    100% { box-shadow: 0 0 8px rgba(0,255,255,0.25); }
-}
+# -----------------------------
+# HELPERS
+# -----------------------------
+def load_json(path: Path, fallback):
+    if path.exists():
+        try:
+            return json.loads(path.read_text())
+        except Exception:
+            return fallback
+    return fallback
 
-/* ----------- ALERT TICKER ----------- */
-.alert-ticker {
-    padding: 8px;
-    background: rgba(255, 35, 35, 0.25);
-    border-top: 2px solid red;
-    border-bottom: 2px solid red;
-    overflow: hidden;
-    white-space: nowrap;
-    box-shadow: 0 0 12px red;
-    margin-bottom: 15px;
-}
 
-.alert-text {
-    display: inline-block;
-    padding-left: 100%;
-    animation: ticker 12s linear infinite;
-    font-weight: bold;
-    color: #ff4b4b;
-}
+def save_json(path: Path, data):
+    path.write_text(json.dumps(data, indent=2))
 
-@keyframes ticker {
-    0% { transform: translateX(0%); }
-    100% { transform: translateX(-100%); }
-}
 
-/* ----------- TABLES ----------- */
-table {
-    color: white !important;
-}
+def get_devices():
+    data = load_json(NETWORK_PATH, {"devices": []})
+    return data.get("devices", [])
 
-thead tr th {
-    background-color: #102030 !important;
-    color: #00eaff !important;
-}
 
-tbody tr:hover {
-    background-color: rgba(0,255,255,0.12) !important;
-}
+def save_devices(devices):
+    save_json(NETWORK_PATH, {"devices": devices})
 
-/* ----------- BUTTONS ----------- */
-.stButton button {
-    background-color: #009dff !important;
-    color: white !important;
-    border-radius: 6px;
-    padding: 8px 20px;
-}
 
-.stButton button:hover {
-    background-color: #00c3ff !important;
-}
-/* ----------------------------
-   MOBILE RESPONSIVE FIX
------------------------------ */
+def get_alerts():
+    data = load_json(ALERTS_PATH, {"alerts": []})
+    return data.get("alerts", [])
 
-@media screen and (max-width: 600px) {
 
-    /* Fix page padding */
-    .main {
-        padding: 0.5rem !important;
+def save_alerts(alerts):
+    save_json(ALERTS_PATH, {"alerts": alerts})
+
+
+def push_fake_alert(devices):
+    """Simulate a live alert every refresh"""
+    if not devices:
+        return
+    suspects = [d for d in devices if d.get("status") != "Safe"]
+    device = random.choice(suspects if suspects else devices)
+    new_alert = {
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "device": device.get("name"),
+        "ip": device.get("ip"),
+        "type": random.choice(["Port Scan", "Malware Beacon", "Unauthorized Access", "Brute Force"]),
+        "severity": random.choice(["Low", "Medium", "High"]),
+        "vlan": device.get("vlan"),
+        "status": "Blocked" if random.random() > 0.4 else "Detected"
     }
+    alerts = get_alerts()
+    alerts.append(new_alert)
+    save_alerts(alerts)
 
-    /* Fix top navigation bar */
-    .top-nav {
-        font-size: 13px !important;
-        padding: 8px !important;
-        text-align: center;
-    }
 
-    /* Make stat numbers align vertically */
-    .css-1xarl3l, .css-1ht1j8u, .css-12ttj6m {
-        text-align: center !important;
-        width: 100% !important;
-        display: block !important;
-        margin-bottom: 8px;
-    }
+def update_device_status(name, new_status, new_vlan=None):
+    devices = get_devices()
+    for d in devices:
+        if d.get("name") == name:
+            d["status"] = new_status
+            if new_vlan is not None:
+                d["vlan"] = new_vlan
+    save_devices(devices)
 
-    /* Device header icons */
-    h2 {
-        font-size: 18px !important;
-    }
 
-    /* Make tables scrollable on small phones */
-    .dataframe {
-        display: block;
-        overflow-x: auto;
-        white-space: nowrap;
-        font-size: 12px !important;
-    }
+# -----------------------------
+# SIDEBAR NAV
+# -----------------------------
+with st.sidebar:
+    st.markdown("<div class='side-title'>🧭 Navigation</div>", unsafe_allow_html=True)
+    page = st.radio(
+        "Go to:",
+        ["Dashboard", "Alerts", "Devices", "Quarantine Center", "Network Overview"],
+        label_visibility="collapsed"
+    )
 
-    /* Shrink columns */
-    table th, table td {
-        padding: 6px !important;
-    }
-}
+# Always load latest data
+devices = get_devices()
+alerts = get_alerts()
 
-/* Fix Streamlit full-width issues */
-.block-container {
-    padding-left: 1rem !important;
-    padding-right: 1rem !important;
-}
+devices_df = pd.DataFrame(devices) if devices else pd.DataFrame(columns=["name","ip","vlan","status"])
+alerts_df = pd.DataFrame(alerts) if alerts else pd.DataFrame(columns=["timestamp","device","ip","type","severity","vlan","status"])
+
+# -----------------------------
+# PAGE 1: DASHBOARD
+# -----------------------------
+if page == "Dashboard":
+    st.markdown("<div class='page-header'>🏠 Smart Home Network Security Dashboard</div>", unsafe_allow_html=True)
+    st.caption("Monitor IoT devices, VLAN segmentation, alerts and intrusions in real-time.")
+
+    # KPI counts
+    active_count = len(devices)
+    blocked_count = len(alerts_df[alerts_df["status"] == "Blocked"]) if not alerts_df.empty else 0
+    quarantined_count = len(devices_df[devices_df["status"] == "Quarantined"]) if not devices_df.empty else 0
+
+    # KPI Tiles (responsive)
+    st.markdown(
+        f"""
+        <div class="kpi-grid">
+            <div class="kpi-card glow-blue">
+                <div class="kpi-title">Active Devices</div>
+                <div class="kpi-value">{active_count}</div>
+                <div class="kpi-foot">Connected right now</div>
+            </div>
+
+            <div class="kpi-card glow-cyan">
+                <div class="kpi-title">Blocked Attacks</div>
+                <div class="kpi-value">{blocked_count}</div>
+                <div class="kpi-foot">Auto-blocked by ACL</div>
+            </div>
+
+            <div class="kpi-card glow-purple">
+                <div class="kpi-title">Quarantined</div>
+                <div class="kpi-value">{quarantined_count}</div>
+                <div class="kpi-foot">Isolated to VLAN 99</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.markdown("<div class='section-title'>🖥️ Connected Devices</div>", unsafe_allow_html=True)
+
+    if devices_df.empty:
+        st.info("No devices found.")
+    else:
+        # Device cards (mobile-friendly)
+        for d in devices:
+            status = d.get("status", "Unknown")
+            vlan = d.get("vlan", "-")
+            ip = d.get("ip", "-")
+            name = d.get("name", "Device")
+
+            status_class = {
+                "Safe": "status-safe",
+                "Suspicious": "status-suspicious",
+                "Quarantined": "status-quarantine"
+            }.get(status, "status-neutral")
+
+            st.markdown(
+                f"""
+                <div class="device-card">
+                    <div class="device-row">
+                        <div class="device-name">📌 {name}</div>
+                        <div class="device-status {status_class}">{status}</div>
+                    </div>
+                    <div class="device-meta">
+                        <span>IP: {ip}</span>
+                        <span>VLAN: {vlan}</span>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+# -----------------------------
+# PAGE 2: ALERTS
+# -----------------------------
+elif page == "Alerts":
+    st.markdown("<div class='page-header'>🚨 Alerts</div>", unsafe_allow_html=True)
+    st.caption("Simulated real-time threat events.")
+
+    # push 1 new alert each page refresh to simulate live behavior
+    push_fake_alert(devices)
+    alerts_df = pd.DataFrame(get_alerts())
+
+    if alerts_df.empty:
+        st.info("No alerts yet.")
+    else:
+        # Latest first
+        alerts_df = alerts_df.sort_values("timestamp", ascending=False)
+
+        # Show as nice list on mobile
+        st.markdown("<div class='section-title'>Recent Alerts</div>", unsafe_allow_html=True)
+
+        for _, a in alerts_df.head(20).iterrows():
+            sev = a.get("severity","Low")
+            sev_class = {
+                "Low": "sev-low",
+                "Medium": "sev-med",
+                "High": "sev-high"
+            }.get(sev, "sev-low")
+
+            st.markdown(
+                f"""
+                <div class="alert-card">
+                    <div class="alert-top">
+                        <div class="alert-type">⚠️ {a.get("type")}</div>
+                        <div class="alert-sev {sev_class}">{sev}</div>
+                    </div>
+                    <div class="alert-body">
+                        <div><b>Device:</b> {a.get("device")}</div>
+                        <div><b>IP:</b> {a.get("ip")}</div>
+                        <div><b>VLAN:</b> {a.get("vlan")}</div>
+                        <div class="alert-time">{a.get("timestamp")}</div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+        st.markdown("<div class='section-title'>Alerts Over Time</div>", unsafe_allow_html=True)
+        alerts_df["timestamp"] = pd.to_datetime(alerts_df["timestamp"], errors="coerce")
+        alerts_df = alerts_df.dropna(subset=["timestamp"])
+        if not alerts_df.empty:
+            line_df = alerts_df.groupby(alerts_df["timestamp"].dt.floor("min")).size().reset_index(name="count")
+            fig = px.line(line_df, x="timestamp", y="count", markers=True, title="Alert Activity Over Time")
+            st.plotly_chart(fig, use_container_width=True)
+
+# -----------------------------
+# PAGE 3: DEVICES
+# -----------------------------
+elif page == "Devices":
+    st.markdown("<div class='page-header'>📡 Devices</div>", unsafe_allow_html=True)
+    st.caption("Inspect and take actions per device.")
+
+    if not devices:
+        st.info("No devices available.")
+    else:
+        for d in devices:
+            with st.expander(f"{d.get('name')} — {d.get('ip')} (VLAN {d.get('vlan')})", expanded=False):
+                st.write(f"**Status:** {d.get('status')}")
+                st.write(f"**IP Address:** {d.get('ip')}")
+                st.write(f"**VLAN:** {d.get('vlan')}")
+
+                c1, c2, c3 = st.columns(3)
+
+                with c1:
+                    if st.button(f"Mark Safe ✅", key=f"safe_{d.get('name')}"):
+                        update_device_status(d.get("name"), "Safe")
+                        st.success("Device marked safe.")
+
+                with c2:
+                    if st.button(f"Block 🚫", key=f"block_{d.get('name')}"):
+                        update_device_status(d.get("name"), "Suspicious")
+                        st.warning("Device blocked (Suspicious).")
+
+                with c3:
+                    if st.button(f"Quarantine 🧪", key=f"iso_{d.get('name')}"):
+                        update_device_status(d.get("name"), "Quarantined", new_vlan=99)
+                        st.error("Device quarantined to VLAN 99.")
+
+# -----------------------------
+# PAGE 4: QUARANTINE CENTER
+# -----------------------------
+elif page == "Quarantine Center":
+    st.markdown("<div class='page-header'>🧪 Quarantine Center</div>", unsafe_allow_html=True)
+    quarantined = [d for d in devices if d.get("status") == "Quarantined"]
+
+    if not quarantined:
+        st.success("No quarantined devices. Network is clean.")
+    else:
+        st.markdown("<div class='section-title'>Isolated Devices (VLAN 99)</div>", unsafe_allow_html=True)
+
+        for d in quarantined:
+            st.markdown(
+                f"""
+                <div class="device-card quarantine">
+                    <div class="device-row">
+                        <div class="device-name">🛑 {d.get("name")}</div>
+                        <div class="device-status status-quarantine">Quarantined</div>
+                    </div>
+                    <div class="device-meta">
+                        <span>IP: {d.get("ip")}</span>
+                        <span>VLAN: {d.get("vlan")}</span>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+            if st.button(f"Release {d.get('name')} 🔓", key=f"release_{d.get('name')}"):
+                update_device_status(d.get("name"), "Safe", new_vlan=40)
+                st.success(f"{d.get('name')} released back to VLAN 40.")
+
+# -----------------------------
+# PAGE 5: NETWORK OVERVIEW
+# -----------------------------
+elif page == "Network Overview":
+    st.markdown("<div class='page-header'>🗺️ Network Overview</div>", unsafe_allow_html=True)
+
+    st.markdown(
+        """
+        **VLAN Segments (Simulation):**
+        - VLAN 10 → Admin  
+        - VLAN 20 → Users  
+        - VLAN 30 → Guest  
+        - VLAN 40 → IoT  
+        - VLAN 99 → Quarantine  
+        """
+    )
+
+    if devices_df.empty:
+        st.info("No data available for charts.")
+    else:
+        st.markdown("<div class='section-title'>Device Distribution by VLAN</div>", unsafe_allow_html=True)
+        vlan_counts = devices_df["vlan"].value_counts().reset_index()
+        vlan_counts.columns = ["vlan", "count"]
+        fig1 = px.bar(vlan_counts, x="vlan", y="count", title="Devices per VLAN")
+        st.plotly_chart(fig1, use_container_width=True)
+
+        st.markdown("<div class='section-title'>Security Status of Devices</div>", unsafe_allow_html=True)
+        status_counts = devices_df["status"].value_counts().reset_index()
+        status_counts.columns = ["status", "count"]
+        fig2 = px.pie(status_counts, names="status", values="count", title="Security Status of Devices")
+        st.plotly_chart(fig2, use_container_width=True)
