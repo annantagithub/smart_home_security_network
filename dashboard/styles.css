@@ -94,3 +94,53 @@ tbody tr:hover {
 .stButton button:hover {
     background-color: #00c3ff !important;
 }
+/* ----------------------------
+   MOBILE RESPONSIVE FIX
+----------------------------- */
+
+@media screen and (max-width: 600px) {
+
+    /* Fix page padding */
+    .main {
+        padding: 0.5rem !important;
+    }
+
+    /* Fix top navigation bar */
+    .top-nav {
+        font-size: 13px !important;
+        padding: 8px !important;
+        text-align: center;
+    }
+
+    /* Make stat numbers align vertically */
+    .css-1xarl3l, .css-1ht1j8u, .css-12ttj6m {
+        text-align: center !important;
+        width: 100% !important;
+        display: block !important;
+        margin-bottom: 8px;
+    }
+
+    /* Device header icons */
+    h2 {
+        font-size: 18px !important;
+    }
+
+    /* Make tables scrollable on small phones */
+    .dataframe {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+        font-size: 12px !important;
+    }
+
+    /* Shrink columns */
+    table th, table td {
+        padding: 6px !important;
+    }
+}
+
+/* Fix Streamlit full-width issues */
+.block-container {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+}
