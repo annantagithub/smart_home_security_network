@@ -7,10 +7,23 @@ import random
 from datetime import datetime
 
 # ---------------------------------------
-# Load CSS Styles
+# Page Configuration (must be FIRST)
 # ---------------------------------------
-with open("dashboard/styles.css") as f:
-    st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+st.set_page_config(
+    page_title="Smart Home Network Security Dashboard",
+    page_icon="🔐",
+    layout="wide"
+)
+
+# ---------------------------------------
+# Load CSS Styles (Correct Path for Option A)
+# ---------------------------------------
+CSS_PATH = "dashboard/styles.css"
+if os.path.exists(CSS_PATH):
+    with open(CSS_PATH) as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+else:
+    st.warning("CSS file not found. Mobile view may look incorrect.")
 
 # ---------------------------------------
 # Top Navigation Bar
@@ -22,23 +35,14 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------
-# Page Configuration
-# ---------------------------------------
-st.set_page_config(
-    page_title="Smart Home Network Security Dashboard",
-    page_icon="🔐",
-    layout="wide"
-)
-
-# ---------------------------------------
 # Additional Inline Styles
 # ---------------------------------------
 st.markdown(
     """
     <style>
     .main {
-        background-color: #111827;
-        color: #F9FAFB;
+        background-color: #111827 !important;
+        color: #F9FAFB !important;
     }
     .stButton>button {
         border-radius: 20px;
@@ -65,19 +69,20 @@ def save_data(data):
 
 data = load_data()
 devices = data.get("devices", [])
-
 devices_df = pd.DataFrame(devices)
 
 # ---------------------------------------
 # Session State for Alerts
 # ---------------------------------------
+DEFAULT_ALERTS = [
+    {"time": "10:00", "source": "Guest Phone", "destination": "Admin PC", "type": "Unauthorized Access", "status": "Blocked"},
+    {"time": "10:05", "source": "IoT Camera", "destination": "User Laptop", "type": "Cross-VLAN Attempt", "status": "Blocked"},
+    {"time": "10:10", "source": "Smart Bulb", "destination": "Admin PC", "type": "ARP Spoofing", "status": "Suspicious"},
+    {"time": "10:20", "source": "Guest Phone", "destination": "Admin PC", "type": "Unauthorized Access", "status": "Blocked"},
+]
+
 if "alerts" not in st.session_state:
-    st.session_state.alerts = [
-        {"time": "10:00", "source": "Guest Phone", "destination": "Admin PC", "type": "Unauthorized Access", "status": "Blocked"},
-        {"time": "10:05", "source": "IoT Camera", "destination": "User Laptop", "type": "Cross-VLAN Attempt", "status": "Blocked"},
-        {"time": "10:10", "source": "Smart Bulb", "destination": "Admin PC", "type": "ARP Spoofing", "status": "Suspicious"},
-        {"time": "10:20", "source": "Guest Phone", "destination": "Admin PC", "type": "Unauthorized Access", "status": "Blocked"},
-    ]
+    st.session_state.alerts = DEFAULT_ALERTS.copy()
 
 alerts = st.session_state.alerts
 
@@ -92,7 +97,7 @@ with st.sidebar:
     )
 
 # ---------------------------------------
-# Helper Functions (Device Status Updates)
+# Helper Functions
 # ---------------------------------------
 def update_device_status(name, new_status, new_vlan=None):
     for d in devices:
@@ -125,7 +130,7 @@ if page == "Dashboard":
     st.subheader("🖥️ Connected Devices")
 
     if not devices_df.empty:
-        st.table(devices_df)
+        st.dataframe(devices_df, use_container_width=True)
     else:
         st.info("No device data available yet.")
 
@@ -136,7 +141,7 @@ elif page == "Alerts":
     st.title("🚨 Security Alerts")
 
     if alerts:
-        st.table(pd.DataFrame(alerts))
+        st.dataframe(pd.DataFrame(alerts), use_container_width=True)
     else:
         st.success("No alerts generated yet.")
 
@@ -214,7 +219,7 @@ elif page == "Quarantine Center":
     quarantined = [d for d in devices if d["status"] == "Quarantined"]
 
     if quarantined:
-        st.table(pd.DataFrame(quarantined))
+        st.dataframe(pd.DataFrame(quarantined), use_container_width=True)
 
         for d in quarantined:
             if st.button(f"Release {d['name']}", key=f"rel_{d['name']}"):
@@ -240,17 +245,14 @@ elif page == "Network Overview":
     df = pd.DataFrame(devices)
 
     if not df.empty:
-        # VLAN distribution
         st.subheader("📊 Device Distribution by VLAN")
         st.bar_chart(df["vlan"].value_counts())
 
-        # Status chart
         st.subheader("🛡️ Device Security Status")
         fig = px.pie(values=df["status"].value_counts().values,
                      names=df["status"].value_counts().index)
         st.plotly_chart(fig, use_container_width=True)
 
-    # Heatmap
     st.subheader("🔥 VLAN Traffic Heatmap (Simulated)")
     heatmap_data = pd.DataFrame(
         [[10, 30, 20],
@@ -262,7 +264,6 @@ elif page == "Network Overview":
     fig3 = px.imshow(heatmap_data, aspect="auto", color_continuous_scale="teal")
     st.plotly_chart(fig3, use_container_width=True)
 
-    # Topology Map
     st.subheader("🌐 IoT Network Topology Map")
     nodes = ["Router", "Admin PC", "User Laptop", "IoT Camera", "Guest Phone", "Smart Bulb"]
     edges = [("Router", "Admin PC"), ("Router", "User Laptop"), ("Router", "IoT Camera"),
